@@ -12,4 +12,5 @@ songbird = {version = "0.3.0", features = ["serenity-rustls", "gateway"]}
 reqwest = "0.11.11"
 scraper = "0.13.0"
 headless_chrome = "0.9.0"
+d20 = "0.1.0"
 
