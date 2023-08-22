@@ -8,6 +8,12 @@ Put a discord bot token in the directory where you plan to run HoodBot in 'token
 
 Also make sure to run the `install` script if you are on Ubuntu or Arch linux. Windows users should install ffmpeg, yt-dlp, cmake and whatever else on their own.
 
+You might need to make it executable first with:
+
+```bash
+chmod +x ./install
+```
+
 ## Usage
 
 The command prefix is `!`.
