@@ -1,6 +1,6 @@
 mod search;
 
-use std::io::Read;
+use std::{io::Read, collections::HashSet};
 
 use songbird::{input::Input, SerenityInit};
 
@@ -9,12 +9,13 @@ use serenity::{
     client::{Client, Context, EventHandler},
     framework::{
         standard::{
-            macros::{command, group},
-            Args, CommandResult,
+            help_commands,
+            macros::{command, group, help},
+            Args, CommandResult, HelpOptions, CommandGroup,
         },
         StandardFramework,
     },
-    model::{channel::Message, gateway::Ready},
+    model::{channel::Message, gateway::Ready, prelude::UserId},
     prelude::*,
     Result as SerenityResult,
 };
@@ -237,6 +238,19 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
     Ok(())
 }
 
+#[help]
+async fn help(
+    ctx: &Context,
+    msg: &Message,
+    args: Args,
+    help_options: &'static HelpOptions,
+    groups: &[&'static CommandGroup],
+    owners: HashSet<UserId>,
+) -> CommandResult {
+    let _ = help_commands::with_embeds(ctx, msg, args, help_options, groups, owners).await;
+    Ok(())
+}
+
 #[command]
 #[aliases("s")]
 #[only_in(guilds)]
@@ -258,8 +272,7 @@ async fn skip(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     reply(&ctx, &msg, format!("→ Skipped {}", song_name)).await;
                 }
             }
-        }
-        else {
+        } else {
             reply(&ctx, &msg, "❌ No song to skip").await;
         }
     } else {
@@ -286,10 +299,7 @@ async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 }
 
 async fn reply(ctx: &Context, msg: &Message, response: impl Into<String>) {
-    check_msg(
-        msg.reply(&ctx.http, response.into())
-            .await,
-    );
+    check_msg(msg.reply(&ctx.http, response.into()).await);
 }
 
 fn check_msg(result: SerenityResult<Message>) {
