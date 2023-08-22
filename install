@@ -6,7 +6,7 @@ then
     echo "Updating Ubuntu"
     sudo apt update && sudo apt upgrade
     echo "Installing deps..."
-    sudo apt install libopus-dev build-essential autoconf automake libtool m4 ffmpeg python3 python3-pip pkg-config openssl
+    sudo apt install libopus-dev build-essential autoconf automake libtool m4 ffmpeg python3 python3-pip pkg-config libssl-dev
 else
     echo "Updating Arch"
     sudo pacman -Syyu
