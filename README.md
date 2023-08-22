@@ -14,6 +14,22 @@ You might need to make it executable first with:
 chmod +x ./install
 ```
 
+### Install Rust if not already installed
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+### Build and install HoodBot
+
+To build and install hoodbot, run:
+
+```bash
+cargo install --path .
+```
+
+HoodBot can then be run using the `hoodbot` command if your cargo bin folder is in your path.
+
 ## Usage
 
 The command prefix is `!`.
