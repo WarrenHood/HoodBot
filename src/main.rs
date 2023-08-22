@@ -21,7 +21,7 @@ use serenity::{
 };
 
 #[group]
-#[commands(milk, join, leave, fuckoff, play, skip, roll)]
+#[commands(milk, join, leave, fuckoff, play, skip, queue, roll)]
 struct General;
 
 struct Handler;
@@ -281,6 +281,39 @@ async fn skip(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         } else {
             reply(&ctx, &msg, "❌ No song to skip").await;
         }
+    } else {
+        check_msg(
+            msg.channel_id
+                .say(&ctx.http, "❌ Not in a voice channel")
+                .await,
+        );
+    }
+
+    Ok(())
+}
+
+#[command]
+#[aliases("q")]
+#[only_in(guilds)]
+async fn queue(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let guild = msg.guild(&ctx.cache).unwrap();
+    let guild_id = guild.id;
+
+    let manager = songbird::get(ctx)
+        .await
+        .expect("Songbird Voice client placed in at initialisation.")
+        .clone();
+
+    if let Some(handler_lock) = manager.get(guild_id) {
+        let mut handler = handler_lock.lock().await;
+        let queue = handler.queue();
+        let mut response = String::new();
+        for (pos, track) in queue.current_queue().iter().enumerate() {
+            let title = track.metadata().title.clone().unwrap_or("Unknown title".into());
+            let artist = track.metadata().artist.clone().unwrap_or("Unknown artist".into());
+            response += &format!("\n{}) [{}] {}", pos + 1, &artist, &title);
+        }
+        reply(ctx, msg, format!("Current songs in queue:\n{}", response)).await;
     } else {
         check_msg(
             msg.channel_id
