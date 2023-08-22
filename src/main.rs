@@ -104,8 +104,10 @@ async fn join(ctx: &Context, msg: &Message) -> CommandResult {
     let manager = songbird::get(ctx)
         .await
         .expect("Songbird voice client not initialised");
-    let _handler = manager.join(guild_id, channel).await;
-
+    let handler = manager.join(guild_id, channel).await;
+    let handler_lock = handler.0;
+    let mut handler = handler_lock.lock().await;
+    let _ = handler.deafen(true).await;
     Ok(())
 }
 
@@ -212,7 +214,9 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         if let Some(source) = get_source(ctx, msg, &url).await {
             if let Some(handler_lock) = manager.get(guild_id) {
                 let mut handler = handler_lock.lock().await;
-
+                if !handler.is_deaf() {
+                    let _ = handler.deafen(true).await;
+                }
                 // handler.play_source(source);
                 handler.enqueue_source(source);
                 check_msg(
