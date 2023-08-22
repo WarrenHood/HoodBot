@@ -6,12 +6,12 @@ then
     echo "Updating Ubuntu"
     sudo apt update && sudo apt upgrade
     echo "Installing deps..."
-    sudo apt install libopus-dev build-essential autoconf automake libtool m4 ffmpeg python3 python3-pip
+    sudo apt install libopus-dev build-essential autoconf automake libtool m4 ffmpeg python3 python3-pip pkg-config openssl
 else
     echo "Updating Arch"
     sudo pacman -Syyu
     echo "Installing deps..."
-    sudo pacman -S opus base-devel ffmpeg python
+    sudo pacman -S opus base-devel ffmpeg python pkg-config openssl
 fi
 
 echo "Installing yt-dlp..."
