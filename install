@@ -1,0 +1,19 @@
+#! /usr/bin/env bash
+# Installs dependencies for either Ubuntu or Arch. On Windows, manually install everything
+
+if [[ "$(cat /etc/os-release)" == *"Ubuntu"* ]]
+then
+    echo "Updating Ubuntu"
+    sudo apt update && sudo apt upgrade
+    echo "Installing deps..."
+    sudo apt install libopus-dev build-essential autoconf automake libtool m4 ffmpeg python
+else
+    echo "Updating Arch"
+    sudo pacman -Syyu
+    echo "Installing deps..."
+    sudo pacman -S opus base-devel ffmpeg python
+fi
+
+echo "Installing yt-dlp..."
+python3 -m pip install -U yt-dlp
+echo "Done"
