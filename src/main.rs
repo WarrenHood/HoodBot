@@ -45,7 +45,8 @@ impl EventHandler for Handler {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("!")) // set the bot's prefix to "~"
-        .group(&GENERAL_GROUP);
+        .group(&GENERAL_GROUP)
+        .help(&HELP);
 
     // Login with a bot token from the environment
     let mut token: String = String::new();
