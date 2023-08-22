@@ -8,9 +8,7 @@ edition = "2021"
 [dependencies]
 serenity = "0.11"
 tokio = {version = "1.20.1", features = ["full"]}
-songbird = {version = "0.3.0", features = ["serenity-rustls", "gateway"]}
+songbird = {version = "0.3.2", features = ["serenity-rustls", "gateway", "yt-dlp", "builtin-queue"]}
 reqwest = "0.11.11"
-scraper = "0.13.0"
-headless_chrome = "0.9.0"
 d20 = "0.1.0"
 
