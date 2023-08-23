@@ -1,8 +1,10 @@
 mod search;
 
-use std::{io::Read, collections::HashSet};
+use std::{collections::HashSet, io::Read, sync::Arc, fmt::format};
 
-use songbird::{input::Input, SerenityInit};
+use songbird::{
+    input::Input, Event, EventContext, EventHandler as VoiceEventHandler, SerenityInit, TrackEvent,
+};
 
 use serenity::{
     async_trait,
@@ -11,11 +13,16 @@ use serenity::{
         standard::{
             help_commands,
             macros::{command, group, help},
-            Args, CommandResult, HelpOptions, CommandGroup,
+            Args, CommandGroup, CommandResult, HelpOptions,
         },
         StandardFramework,
     },
-    model::{channel::Message, gateway::Ready, prelude::UserId},
+    http::Http,
+    model::{
+        channel::Message,
+        gateway::Ready,
+        prelude::{ChannelId, UserId},
+    },
     prelude::*,
     Result as SerenityResult,
 };
@@ -41,13 +48,31 @@ impl EventHandler for Handler {
     }
 }
 
+struct SongPlayNotifier {
+    artist: String,
+    title: String,
+    channel_id: ChannelId,
+    http: Arc<Http>,
+}
+
+#[async_trait]
+impl VoiceEventHandler for SongPlayNotifier {
+    async fn act(&self, _ctx: &EventContext<'_>) -> Option<Event> {
+        check_msg(
+            self.channel_id
+                .say(&self.http, format!("🎵🎵 Now playing {} - {} 🎵🎵", self.artist, self.title))
+                .await,
+        );
+        None
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("!")) // set the bot's prefix to "~"
         .help(&HELP)
         .group(&GENERAL_GROUP);
-        
 
     // Login with a bot token from the environment
     let mut token: String = String::new();
@@ -218,7 +243,16 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                     let _ = handler.deafen(true).await;
                 }
                 // handler.play_source(source);
-                handler.enqueue_source(source);
+                let track_handle = handler.enqueue_source(source);
+                let _ = track_handle.add_event(
+                    Event::Track(TrackEvent::Play),
+                    SongPlayNotifier {
+                        artist: track_handle.metadata().artist.clone().unwrap_or("Unknown Artist".into()),
+                        title: track_handle.metadata().title.clone().unwrap_or("Unknown Title".into()),
+                        channel_id: msg.channel_id,
+                        http: ctx.http.clone(),
+                    },
+                );
                 check_msg(
                     msg.channel_id
                         .say(&ctx.http, format!("💿 Added {} to queue", song))
@@ -309,8 +343,16 @@ async fn queue(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         let queue = handler.queue();
         let mut response = String::new();
         for (pos, track) in queue.current_queue().iter().enumerate() {
-            let title = track.metadata().title.clone().unwrap_or("Unknown title".into());
-            let artist = track.metadata().artist.clone().unwrap_or("Unknown artist".into());
+            let title = track
+                .metadata()
+                .title
+                .clone()
+                .unwrap_or("Unknown title".into());
+            let artist = track
+                .metadata()
+                .artist
+                .clone()
+                .unwrap_or("Unknown artist".into());
             response += &format!("\n{}) [{}] {}", pos + 1, &artist, &title);
         }
         reply(ctx, msg, format!("Current songs in queue:\n{}", response)).await;
