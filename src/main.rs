@@ -255,7 +255,7 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 );
                 check_msg(
                     msg.channel_id
-                        .say(&ctx.http, format!("💿 Queued {}", track_handle.metadata().title.clone().unwrap_or("Unknown Title".into()))
+                        .say(&ctx.http, format!("💿 Queued {}", track_handle.metadata().title.clone().unwrap_or("Unknown Title".into())))
                         .await,
                 );
             } else {
