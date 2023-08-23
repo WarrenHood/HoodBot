@@ -255,7 +255,7 @@ async fn play(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 );
                 check_msg(
                     msg.channel_id
-                        .say(&ctx.http, format!("💿 Added {} to queue", song))
+                        .say(&ctx.http, format!("💿 Queued {}", track_handle.metadata().title.clone().unwrap_or("Unknown Title".into()))
                         .await,
                 );
             } else {
@@ -353,9 +353,9 @@ async fn queue(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
                 .artist
                 .clone()
                 .unwrap_or("Unknown artist".into());
-            response += &format!("\n{}) [{}] {}", pos + 1, &artist, &title);
+            response += &format!("\n  {}) [{}] {}", pos + 1, &artist, &title);
         }
-        reply(ctx, msg, format!("Current songs in queue:\n{}", response)).await;
+        reply(ctx, msg, format!("💿💿 Songs in queue 💿💿{}", response)).await;
     } else {
         check_msg(
             msg.channel_id
