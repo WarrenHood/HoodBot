@@ -19,7 +19,7 @@
         defaultPackage = naersk'.buildPackage {
           src = ./.;
 
-          buildInputs = with pkgs; [ cmake libopus ];
+          buildInputs = with pkgs; [ cmake libopus yt-dlp ffmpeg ];
         };
 
         # For `nix develop` (optional, can be skipped):

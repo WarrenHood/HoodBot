@@ -181,12 +181,13 @@ async fn fuckoff(ctx: &Context, msg: &Message) -> CommandResult {
 }
 
 async fn get_source(ctx: &Context, msg: &Message, url: &str) -> Option<Input> {
+    println!("Attempting to get source with url: {url}");
     match songbird::ytdl(url).await {
         Ok(source) => Some(source),
-        Err(_err) => {
+        Err(err) => {
             check_msg(
                 msg.channel_id
-                    .say(&ctx.http, "Could not get song from youtube.com")
+                    .say(&ctx.http, format!("Could not get song... Error:\n```\n{err}\n```"))
                     .await,
             );
             None
