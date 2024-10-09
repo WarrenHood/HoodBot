@@ -24,7 +24,7 @@
 
         # For `nix develop` (optional, can be skipped):
         devShell = pkgs.mkShell {
-          nativeBuildInputs = with pkgs; [ rustc cargo cmake pkg-config ];
+          nativeBuildInputs = with pkgs; [ rustc cargo cmake pkg-config openssl ];
         };
       }
     );
