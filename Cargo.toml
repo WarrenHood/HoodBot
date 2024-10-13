@@ -11,4 +11,6 @@ tokio = {version = "1.20.1", features = ["full"]}
 songbird = {version = "0.3.2", features = ["serenity-rustls", "gateway", "yt-dlp", "builtin-queue"]}
 reqwest = "0.11.11"
 d20 = "0.1.0"
+anyhow = "1.0.89"
+rand = "0.8.5"
 

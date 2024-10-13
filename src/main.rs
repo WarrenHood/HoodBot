@@ -1,7 +1,9 @@
+mod roulette;
 mod search;
 
-use std::{collections::HashSet, io::Read, sync::Arc, fmt::format};
+use std::{collections::{HashMap, HashSet}, fmt::format, io::Read, sync::Arc};
 
+use roulette::RouletteState;
 use songbird::{
     input::Input, Event, EventContext, EventHandler as VoiceEventHandler, SerenityInit, TrackEvent,
 };
@@ -28,7 +30,7 @@ use serenity::{
 };
 
 #[group]
-#[commands(milk, join, leave, fuckoff, play, skip, queue, roll)]
+#[commands(milk, join, leave, fuckoff, play, skip, queue, roll, rbet, rbets, rbalance, rclearlast, rclearall)]
 struct General;
 
 struct Handler;
@@ -376,6 +378,221 @@ async fn roll(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
         reply(&ctx, &msg, format!("You rolled: {}", result.to_string())).await;
     } else {
         reply(&ctx, &msg, format!("Invalid roll expression")).await;
+    }
+    Ok(())
+}
+
+struct RouletteData {
+    channel_state: HashMap<ChannelId, Arc<Mutex<RouletteState<UserId>>>>
+}
+
+impl TypeMapKey for RouletteData {
+    type Value = RouletteData;
+}
+
+#[command]
+#[only_in(guilds)]
+async fn rbet(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
+    let mut ctx_data = ctx.data.write().await;
+    let roulette_data = ctx_data.entry::<RouletteData>().or_insert(RouletteData{ channel_state: Default::default() });
+    let roulette_state = roulette_data.channel_state.entry(msg.channel_id).or_insert(
+        Arc::new(Mutex::new(RouletteState::new()))
+    );
+    let player_id = msg.author.id;
+    let player_name = msg.author.name.clone();
+    let mut roulette_state_mut = roulette_state.lock().await;
+    roulette_state_mut.register_player(player_id, &player_name);
+    let current_balance = roulette_state_mut.get_balance(player_id);
+    if let Ok(current_balance) = current_balance {
+        if let Ok(current_bets) = roulette_state_mut.get_bets(player_id) {
+            if current_balance == 0 && current_bets.len() == 0 {
+                let set_money_result = roulette_state_mut.set_balance(player_id, 5);
+                if set_money_result.is_ok() {
+                    reply(ctx, msg, format!("```\nYou seem broke. Since I feel sorry for you, have 5 money units...\n```")).await;
+                }
+            }
+        }
+    }
+    let bet_result = roulette_state_mut.play_bet_command(player_id, args.rest());
+    if let Err(e) = bet_result {
+        reply(ctx, msg, format!("Betting failed:\n{}", e.to_string())).await;
+    }
+    let current_bets = roulette_state_mut.get_bets(player_id);
+    match current_bets {
+        Ok(current_bets) => {
+            let bets: Vec<String> = current_bets.into_iter().map(|bet| format!("- {bet:?}")).collect();
+            reply(ctx, msg, format!("Current bets:\n```\n{}\n```", bets.join("\n"))).await;
+        },
+        Err(e) => {
+            reply(ctx, msg, format!("Unable to get current bets: {}", e.to_string())).await;
+        }
+    }
+    let current_balance = roulette_state_mut.get_balance(player_id);
+    match current_balance {
+        Ok(current_balance) => {
+            reply(ctx, msg, format!("```\nYour new balance is {current_balance}\n```")).await;
+        },
+        Err(e) => {
+            reply(ctx, msg, format!("Unable to get current balance: {}", e.to_string())).await;
+        }
+    }
+
+    if !roulette_state_mut.spin_scheduled {
+        roulette_state_mut.spin_scheduled = true;
+        let _ = msg.channel_id.say(ctx, "```\nWheel will stop spinning in 40 seconds. Place your bets!\n```").await;
+        let http = ctx.http.clone();
+        let roulette_state = roulette_state.clone();
+        let channel_id = msg.channel_id.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+            let _ = channel_id.say(&http, "```\nWheel will stop spinning in 10 seconds. Finalize your bets!\n```").await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+            let mut roulette_state = roulette_state.lock().await;
+            roulette_state.lock_bets();
+            let _ = channel_id.say(&http, "Bets have been finalized!").await;
+            let spin_result = roulette_state.spin();
+            let payouts: Vec<String> = spin_result.payouts.into_iter().map(
+                |(player_id, (payout, balance))| format!("- {player_id}: {payout} (new balance: {balance})")
+            ).collect();
+            let payouts = payouts.join("\n");
+            let color = match spin_result.result {
+                0 => "Green",
+                _ => {
+                    if roulette::is_red(spin_result.result) {
+                        "Red"
+                    }
+                    else {
+                        "Black"
+                    }
+                }
+            };
+            let _ = channel_id.say(&http, format!("**Landed on {}** (**{color}**)\nPayouts:\n```\n{payouts}\n```", spin_result.result)).await;
+        });
+    }
+    Ok(())
+}
+
+#[command]
+#[only_in(guilds)]
+async fn rclearlast(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    let mut ctx_data = ctx.data.write().await;
+    let roulette_data = ctx_data.entry::<RouletteData>().or_insert(RouletteData{ channel_state: Default::default() });
+    let roulette_state = roulette_data.channel_state.entry(msg.channel_id).or_insert(
+        Arc::new(Mutex::new(RouletteState::new()))
+    );
+    let player_id = msg.author.id;
+    let player_name = msg.author.name.clone();
+    let mut roulette_state_mut = roulette_state.lock().await;
+    roulette_state_mut.register_player(player_id, &player_name);
+    let bet_result = roulette_state_mut.clear_last_bet(player_id);
+    if let Err(e) = bet_result {
+        reply(ctx, msg, format!("```\nUnable to clear last bet:\n{}\n```", e.to_string())).await;
+    }
+    let current_bets = roulette_state_mut.get_bets(player_id);
+    match current_bets {
+        Ok(current_bets) => {
+            let bets: Vec<String> = current_bets.into_iter().map(|bet| format!("- {bet:?}")).collect();
+            reply(ctx, msg, format!("Current bets:\n```\n{}\n```", bets.join("\n"))).await;
+        },
+        Err(e) => {
+            reply(ctx, msg, format!("Unable to get current bets: {}", e.to_string())).await;
+        }
+    }
+    let current_balance = roulette_state_mut.get_balance(player_id);
+    match current_balance {
+        Ok(current_balance) => {
+            reply(ctx, msg, format!("```\nYour new balance is {current_balance}\n```")).await;
+        },
+        Err(e) => {
+            reply(ctx, msg, format!("Unable to get current balance: {}", e.to_string())).await;
+        }
+    }
+    Ok(())
+}
+
+#[command]
+#[only_in(guilds)]
+async fn rclearall(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    let mut ctx_data = ctx.data.write().await;
+    let roulette_data = ctx_data.entry::<RouletteData>().or_insert(RouletteData{ channel_state: Default::default() });
+    let roulette_state = roulette_data.channel_state.entry(msg.channel_id).or_insert(
+        Arc::new(Mutex::new(RouletteState::new()))
+    );
+    let player_id = msg.author.id;
+    let player_name = msg.author.name.clone();
+    let mut roulette_state_mut = roulette_state.lock().await;
+    roulette_state_mut.register_player(player_id, &player_name);
+    let bet_result = roulette_state_mut.clear_all_bets(player_id);
+    if let Err(e) = bet_result {
+        reply(ctx, msg, format!("```\nUnable to clear all bets:\n{}\n```", e.to_string())).await;
+    }
+    let current_bets = roulette_state_mut.get_bets(player_id);
+    match current_bets {
+        Ok(current_bets) => {
+            let bets: Vec<String> = current_bets.into_iter().map(|bet| format!("- {bet:?}")).collect();
+            reply(ctx, msg, format!("Current bets:\n```\n{}\n```", bets.join("\n"))).await;
+        },
+        Err(e) => {
+            reply(ctx, msg, format!("Unable to get current bets: {}", e.to_string())).await;
+        }
+    }
+    let current_balance = roulette_state_mut.get_balance(player_id);
+    match current_balance {
+        Ok(current_balance) => {
+            reply(ctx, msg, format!("```\nYour new balance is {current_balance}\n```")).await;
+        },
+        Err(e) => {
+            reply(ctx, msg, format!("Unable to get current balance: {}", e.to_string())).await;
+        }
+    }
+    Ok(())
+}
+
+#[command]
+#[only_in(guilds)]
+async fn rbalance(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    let mut ctx_data = ctx.data.write().await;
+    let roulette_data = ctx_data.entry::<RouletteData>().or_insert(RouletteData{ channel_state: Default::default() });
+    let roulette_state = roulette_data.channel_state.entry(msg.channel_id).or_insert(
+        Arc::new(Mutex::new(RouletteState::new()))
+    );
+    let player_id = msg.author.id;
+    let player_name = msg.author.name.clone();
+    let mut roulette_state_mut = roulette_state.lock().await;
+    roulette_state_mut.register_player(player_id, &player_name);
+    let current_balance = roulette_state_mut.get_balance(player_id);
+    match current_balance {
+        Ok(current_balance) => {
+            reply(ctx, msg, format!("```\nYour balance is {current_balance}\n```")).await;
+        },
+        Err(e) => {
+            reply(ctx, msg, format!("Unable to get current balance: {}", e.to_string())).await;
+        }
+    }
+    Ok(())
+}
+
+#[command]
+#[only_in(guilds)]
+async fn rbets(ctx: &Context, msg: &Message, _args: Args) -> CommandResult {
+    let mut ctx_data = ctx.data.write().await;
+    let roulette_data = ctx_data.entry::<RouletteData>().or_insert(RouletteData{ channel_state: Default::default() });
+    let roulette_state = roulette_data.channel_state.entry(msg.channel_id).or_insert(
+        Arc::new(Mutex::new(RouletteState::new()))
+    );
+    let player_id = msg.author.id;
+    let player_name = msg.author.name.clone();
+    let mut roulette_state_mut = roulette_state.lock().await;
+    roulette_state_mut.register_player(player_id, &player_name);
+    let current_bets = roulette_state_mut.get_bets(player_id);
+    match current_bets {
+        Ok(current_bets) => {
+            let bets: Vec<String> = current_bets.into_iter().map(|bet| format!("- {bet:?}")).collect();
+            reply(ctx, msg, format!("Current bets:\n```\n{}\n```", bets.join("\n"))).await;
+        },
+        Err(e) => {
+            reply(ctx, msg, format!("Unable to get current bets: {}", e.to_string())).await;
+        }
     }
     Ok(())
 }
