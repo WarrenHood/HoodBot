@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display, hash::Hash, str::FromStr};
+use std::{collections::BTreeMap, fmt::Display, hash::Hash, str::FromStr};
 use anyhow::{Context, Result};
 use rand::Rng;
 
@@ -23,17 +23,21 @@ pub enum Bet {
     Red,
     Black,
     Even,
-    Odd
+    Odd,
+    Dozen{
+        nth: u8
+    }
 }
 
 impl Bet {
     pub fn get_payout_ratio(&self) -> u128 {
         match self {
-            Bet::Single { number: _ } => 35,
+            Bet::Single { number: _ } => 36,
             Bet::Red => 2,
             Bet::Black => 2,
             Bet::Even => 2,
             Bet::Odd => 2,
+            Bet::Dozen { nth } => 3,
         }
     }
 
@@ -44,6 +48,7 @@ impl Bet {
             Bet::Black => is_black(spin_result),
             Bet::Even => spin_result > 0 && spin_result % 2 == 0,
             Bet::Odd => spin_result > 0 && spin_result % 2 == 1,
+            Bet::Dozen { nth } => spin_result != 0 && spin_result >= nth * 12 + 1 && spin_result <= (nth + 1) * 12,
         }
     }
 
@@ -64,6 +69,9 @@ impl Bet {
                     "black" => bets.push(Bet::Black),
                     "even" => bets.push(Bet::Even),
                     "odd" => bets.push(Bet::Odd),
+                    "dozen1" => bets.push(Bet::Dozen { nth: 0 }),
+                    "dozen2" => bets.push(Bet::Dozen { nth: 1 }),
+                    "dozen3" => bets.push(Bet::Dozen { nth: 2 }),
                     _ => anyhow::bail!("Unrecognized bet type: '{first_word}'")
                 }
             },
@@ -147,17 +155,17 @@ impl<T> Player<T> where T: Display {
 }
 
 pub struct RouletteState<T> {
-    players: HashMap<T, Player<T>>,
+    players: BTreeMap<T, Player<T>>,
     can_change_bets: bool,
     pub spin_scheduled: bool
 }
 
 pub struct SpinResult {
     pub result: u8,
-    pub payouts: HashMap<String, (u128, u128)>,
+    pub payouts: BTreeMap<String, (u128, u128)>,
 }
 
-impl<T> RouletteState<T> where T: Display + Eq + Hash + Clone {
+impl<T> RouletteState<T> where T: Display + Eq + Hash + Clone + Ord {
     pub fn new() -> Self {
         RouletteState {
             players: Default::default(),
@@ -241,7 +249,7 @@ impl<T> RouletteState<T> where T: Display + Eq + Hash + Clone {
 
     pub fn spin(&mut self) -> SpinResult {
         let mut thread_rng = rand::thread_rng();
-        let mut payouts: HashMap<String, (u128, u128)> = HashMap::default();
+        let mut payouts: BTreeMap<String, (u128, u128)> = BTreeMap::default();
         let result = thread_rng.gen_range(0..36) as u8;
         println!("Spin result: {result}");
         for player in self.players.values_mut() {
@@ -249,11 +257,13 @@ impl<T> RouletteState<T> where T: Display + Eq + Hash + Clone {
             for player_bet in player.bets.iter() {
                 total_payout += player_bet.get_payout(result);
             }
-            player.bets.clear();
-            player.balance += total_payout;
-            println!("Player {} (id={}) received payout of {total_payout}", player.player_name, player.player_id);
-            let player_key = format!("{} (id={})", player.player_name, player.player_id);
-            payouts.insert(player_key, (total_payout, player.balance));
+            if player.bets.len() > 0 {
+                player.bets.clear();
+                player.balance += total_payout;
+                println!("Player {} (id={}) received payout of {total_payout}", player.player_name, player.player_id);
+                let player_key = format!("{} (id={})", player.player_name, player.player_id);
+                payouts.insert(player_key, (total_payout, player.balance));
+            }
         }
         self.can_change_bets = true;
         self.spin_scheduled = false;

@@ -439,12 +439,12 @@ async fn rbet(ctx: &Context, msg: &Message, args: Args) -> CommandResult {
 
     if !roulette_state_mut.spin_scheduled {
         roulette_state_mut.spin_scheduled = true;
-        let _ = msg.channel_id.say(ctx, "```\nWheel will stop spinning in 40 seconds. Place your bets!\n```").await;
+        let _ = msg.channel_id.say(ctx, "```\nWheel will stop spinning in 25 seconds. Place your bets!\n```").await;
         let http = ctx.http.clone();
         let roulette_state = roulette_state.clone();
         let channel_id = msg.channel_id.clone();
         tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+            tokio::time::sleep(tokio::time::Duration::from_secs(15)).await;
             let _ = channel_id.say(&http, "```\nWheel will stop spinning in 10 seconds. Finalize your bets!\n```").await;
             tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
             let mut roulette_state = roulette_state.lock().await;
