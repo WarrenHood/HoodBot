@@ -13,13 +13,19 @@
         };
 
         naersk' = pkgs.callPackage naersk {};
-
+        
       in rec {
         # For `nix build` & `nix run`:
         defaultPackage = naersk'.buildPackage {
           src = ./.;
 
-          buildInputs = with pkgs; [ cmake libopus yt-dlp ffmpeg ];
+          buildInputs = with pkgs; [ cmake libopus yt-dlp ffmpeg makeWrapper ];
+
+          # Use postInstall to wrap the program with the necessary PATH
+          postInstall = ''
+            wrapProgram $out/bin/hoodbot \
+              --prefix PATH : ${pkgs.ffmpeg}/bin:${pkgs.yt-dlp}/bin
+          '';
         };
 
         # For `nix develop` (optional, can be skipped):
