@@ -12,14 +12,15 @@
           inherit system;
         };
 
-        naersk' = pkgs.callPackage naersk {};
-        
-      in rec {
+        naersk' = pkgs.callPackage naersk { };
+
+      in
+      rec {
         # For `nix build` & `nix run`:
         defaultPackage = naersk'.buildPackage {
           src = ./.;
 
-          buildInputs = with pkgs; [ cmake libopus yt-dlp ffmpeg makeWrapper ];
+          nativeBuildInputs = with pkgs; [ cmake libopus yt-dlp ffmpeg makeWrapper pkg-config openssl ];
 
           # Use postInstall to wrap the program with the necessary PATH
           postInstall = ''
